@@ -1,4 +1,4 @@
-name: Build Mac App
+name: Build Native Mac App (M-Series)
 
 on:
   push:
@@ -7,16 +7,17 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    # 关键：使用 macos-14，它是 GitHub 提供的 M1 芯片运行环境
+    runs-on: macos-14
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # 升级到 v4
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v5  # 升级到 v5
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11' # 3.11 在 M 芯片上表现最稳
 
     - name: Install dependencies
       run: |
@@ -25,13 +26,15 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        # 自动寻找仓库里的第一个 .py 文件
         FILE_NAME=$(ls *.py | head -n 1)
-        echo "Found script: $FILE_NAME"
-        python -m PyInstaller --noconsole --onefile --clean "$FILE_NAME"
+        # --target-arch arm64 确保编译为 M 系列原生架构
+        python -m PyInstaller --noconsole --onefile --clean \
+               --target-arch arm64 \
+               --name "TikTok定价助手_M芯片原生版" \
+               "$FILE_NAME"
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v4  # 核心修复：升级到 v4
+      uses: actions/upload-artifact@v4
       with:
-        name: TikTok-Pricing-Tool-Mac
-        path: dist/        # 导出整个 dist 文件夹
+        name: TikTok-Pricing-M-Silicon
+        path: dist/
