@@ -88,7 +88,7 @@ root.bind('<Return>', calculate_single)
 
 # 结果展示
 text_result = tk.Text(main_frame, height=10, font=("Consolas", 10), 
-                      state=tk.DISABLED, bg="#f4f4f4", padx=10, pady=10)
+                      state=tk.DISABLED, padx=10, pady=10)
 text_result.pack(fill=tk.X)
 
 if __name__ == "__main__":
