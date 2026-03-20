@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import math
 
-# --- 1. 基础配置与汇率 ---
+# --- 1. 基础财务配置 ---
 FIXED_MY_RATE = 0.57 
 FULL_RATES = {
     "🇨🇳 RMB": 1.0, "🇲🇾 MYR": 0.588, "🇺🇸 USD": 0.138, "🇪🇺 EUR": 0.127,
@@ -11,12 +11,13 @@ FULL_RATES = {
     "🇵🇭 PHP": 7.8, "🇮🇩 IDR": 2150.0
 }
 
-# 黑暗模式色板
-BG_DARK = "#1E1E1E"    
-CARD_DARK = "#2D2D2D"  
-INPUT_DARK = "#3D3D3D" 
-TEXT_WHITE = "#FFFFFF" 
-TEXT_GRAY = "#AAAAAA"  
+# 黑暗模式极致色板
+BG_DARK = "#1C1C1E"       # 苹果深空黑
+CARD_DARK = "#2C2C2E"     # 卡片色
+INPUT_DARK = "#3A3A3C"    # 输入框色
+TEXT_WHITE = "#FFFFFF"    # 纯白
+TEXT_GRAY = "#8E8E93"     # 辅助灰
+MAC_BLUE = "#0A84FF"      # macOS 黑暗模式标准蓝色
 
 PLATFORM_COMMISSION = 0.0702 
 FIXED_FEE_MYR = 0.54         
@@ -58,7 +59,7 @@ def calculate_logic(*args):
         
         divisor = 1 - PLATFORM_COMMISSION - margin_pct - ads_pct - aff_pct
         if divisor <= 0:
-            show_res("⚠️ 运营占比总和超限！")
+            show_res("⚠️ 占比总和过高！")
             return
 
         total_deal_price_myr = total_base_expenses / divisor
@@ -70,15 +71,15 @@ def calculate_logic(*args):
         
         show_res(
             f"建议总原价： {f_total_orig:.2f} {suffix}\n"
-            f"订单总售价： {f_total_deal:.2f} {suffix}\n"
-            f"单件实付价： {f_total_deal/qty:.2f} {suffix}\n"
+            f"订单总实付： {f_total_deal:.2f} {suffix}\n"
+            f"单件平均价： {f_total_deal/qty:.2f} {suffix}\n"
             f"----------------------------------\n"
-            f"订单纯利润 ({int(margin_pct*100)}%): {f_total_deal * margin_pct:.2f} {suffix}\n"
-            f"预计总利润 (RMB): {profit_rmb:.2f} RMB\n"
+            f"目标利润 ({int(margin_pct*100)}%): {f_total_deal * margin_pct:.2f} {suffix}\n"
+            f"预计利润 (RMB): {profit_rmb:.2f} RMB\n"
             f"----------------------------------\n"
             f"流量支出 ({int(ads_pct*100)}%): {f_total_deal * ads_pct:.2f} {suffix}\n"
-            f"达人分销 ({int(aff_pct*100)}%): {f_total_deal * aff_pct:.2f} {suffix}\n"
-            f"平台扣点 (7.02%): {f_total_deal * PLATFORM_COMMISSION:.2f} {suffix}"
+            f"达人分账 ({int(aff_pct*100)}%): {f_total_deal * aff_pct:.2f} {suffix}\n"
+            f"平台抽佣 (7.02%): {f_total_deal * PLATFORM_COMMISSION:.2f} {suffix}"
         )
     except: pass
 
@@ -91,22 +92,21 @@ def show_res(msg):
 # --- 3. UI 构造 ---
 root = tk.Tk()
 root.title("TikTok 定价助手 Pro")
-root.geometry("860x950")
+root.geometry("820x960")
 root.configure(bg=BG_DARK)
 
-# 强制适配 macOS Retina 渲染
+# 强制开启 Retina 渲染
 if root.tk.call('tk', 'windowingsystem') == 'aqua':
     root.tk.call('tk', 'scaling', 2.0)
 
-# 使用 macOS 原生 ttk 样式
-style = ttk.Style()
-style.theme_use('aqua') # 关键：调用 Mac 原生组件外观
+style = ttk.Style(root)
+style.theme_use('aqua')
 
 main = tk.Frame(root, padx=25, pady=20, bg=BG_DARK)
 main.pack(fill=tk.BOTH, expand=True)
 
-# 1. 汇率区 (6列大字排版)
-lf = tk.LabelFrame(main, text=" 实时汇率设置 (锚定RMB) ", padx=10, pady=10, bg=BG_DARK, fg=TEXT_GRAY, font=("Arial", 10, "bold"))
+# --- 汇率区 (大字体) ---
+lf = tk.LabelFrame(main, text=" 实时汇率设置 (RMB 基准) ", padx=10, pady=10, bg=BG_DARK, fg=TEXT_GRAY, font=("Arial", 10, "bold"))
 lf.pack(fill=tk.X, pady=(0, 15))
 
 rate_mode = tk.StringVar(value="fixed")
@@ -116,14 +116,13 @@ tk.Radiobutton(lf, text="锁定 0.57", variable=rate_mode, value="fixed", comman
 rate_vars = {}
 for i, (curr, rate) in enumerate(FULL_RATES.items()):
     r, c = (i // 6) + 1, (i % 6) * 2
-    # 增加字体到 12号
     tk.Label(lf, text=f"{curr}:", font=("Arial", 12), bg=BG_DARK, fg=TEXT_WHITE).grid(row=r, column=c, sticky=tk.W, padx=4, pady=5)
     v = tk.StringVar(value=str(rate))
     rate_vars[curr] = v
     e = tk.Entry(lf, width=7, textvariable=v, relief="flat", bg=INPUT_DARK, fg=TEXT_WHITE, insertbackground="white", font=("Arial", 12))
     e.grid(row=r, column=c+1, padx=4, pady=5); e.bind("<KeyRelease>", lambda e: calculate_logic())
 
-# 2. 运营层 (4列等宽，Mac原生选项框)
+# --- 运营与输入层 ---
 op_frame = tk.Frame(main, bg=BG_DARK)
 op_frame.pack(fill=tk.X, pady=15)
 for i in range(4): op_frame.columnconfigure(i, weight=1, uniform="group1")
@@ -131,79 +130,84 @@ for i in range(4): op_frame.columnconfigure(i, weight=1, uniform="group1")
 def make_label(parent, text):
     return tk.Label(parent, text=text, font=("Arial", 11, "bold"), bg=BG_DARK, fg=TEXT_WHITE)
 
-# 利润率
+# 1. 利润
 v_p = tk.Frame(op_frame, bg=BG_DARK)
 v_p.grid(row=0, column=0, sticky="ew")
 make_label(v_p, "🎯 利润率").pack(anchor=tk.W)
 combo_profit = ttk.Combobox(v_p, values=[f"{i}%" for i in range(16, 31)], state="readonly")
 combo_profit.set("20%"); combo_profit.pack(fill=tk.X, pady=8, ipady=3); combo_profit.bind("<<ComboboxSelected>>", calculate_logic)
 
-# 广告
+# 2. 广告
 v_a = tk.Frame(op_frame, bg=BG_DARK)
 v_a.grid(row=0, column=1, sticky="ew", padx=15)
 make_label(v_a, "🔥 广告支出").pack(anchor=tk.W)
 combo_ads = ttk.Combobox(v_a, values=[f"{i}%" for i in range(26)], state="readonly")
 combo_ads.set("0%"); combo_ads.pack(fill=tk.X, pady=8, ipady=3); combo_ads.bind("<<ComboboxSelected>>", calculate_logic)
 
-# 达人
+# 3. 达人
 v_aff = tk.Frame(op_frame, bg=BG_DARK)
 v_aff.grid(row=0, column=2, sticky="ew", padx=(0,15))
 make_label(v_aff, "🤝 达人佣金").pack(anchor=tk.W)
 combo_aff = ttk.Combobox(v_aff, values=[f"{i}%" for i in range(26)], state="readonly")
 combo_aff.set("0%"); combo_aff.pack(fill=tk.X, pady=8, ipady=3); combo_aff.bind("<<ComboboxSelected>>", calculate_logic)
 
-# Bundle
+# 4. 开关
 v_sw = tk.Frame(op_frame, bg=BG_DARK)
 v_sw.grid(row=0, column=3, sticky="ew")
 make_label(v_sw, "📦 多件多折").pack(anchor=tk.W)
 bundle_mode = tk.BooleanVar(value=True)
-tk.Checkbutton(v_sw, text="启用(2件8/3件7)", variable=bundle_mode, bg=BG_DARK, fg=TEXT_GRAY, selectcolor=CARD_DARK, command=calculate_logic, font=("Arial", 11), activebackground=BG_DARK).pack(pady=10, anchor=tk.W)
+tk.Checkbutton(v_sw, text="启用优惠", variable=bundle_mode, bg=BG_DARK, fg=TEXT_GRAY, selectcolor=CARD_DARK, command=calculate_logic, font=("Arial", 11), activebackground=BG_DARK).pack(pady=10, anchor=tk.W)
 
-# 3. 输入层 (4列对齐)
+# 核心输入
 in_frame = tk.Frame(main, bg=BG_DARK)
 in_frame.pack(fill=tk.X, pady=15)
 for i in range(4): in_frame.columnconfigure(i, weight=1, uniform="group1")
 
-# 成本
-f1 = tk.Frame(in_frame, bg=BG_DARK)
-f1.grid(row=0, column=0, sticky="ew")
-make_label(f1, "💰 单成本(RMB)").pack(anchor=tk.W)
+# 成本/运费/币种/数量
+f1 = tk.Frame(in_frame, bg=BG_DARK); f1.grid(row=0, column=0, sticky="ew")
+make_label(f1, "💰 成本(RMB)").pack(anchor=tk.W)
 entry_cost = tk.Entry(f1, font=("Arial", 16, "bold"), relief="flat", bg=INPUT_DARK, fg=TEXT_WHITE, insertbackground="white")
 entry_cost.pack(fill=tk.X, pady=8); entry_cost.insert(0, "20"); entry_cost.bind("<KeyRelease>", lambda e: calculate_logic())
 
-# 运费
-f2 = tk.Frame(in_frame, bg=BG_DARK)
-f2.grid(row=0, column=1, sticky="ew", padx=15)
+f2 = tk.Frame(in_frame, bg=BG_DARK); f2.grid(row=0, column=1, sticky="ew", padx=15)
 make_label(f2, "🚚 订单运费").pack(anchor=tk.W)
 entry_ship = tk.Entry(f2, font=("Arial", 16, "bold"), relief="flat", bg=INPUT_DARK, fg=TEXT_WHITE, insertbackground="white")
 entry_ship.pack(fill=tk.X, pady=8); entry_ship.insert(0, "1.95"); entry_ship.bind("<KeyRelease>", lambda e: calculate_logic())
 
-# 币种 (Mac原生下拉)
-f3 = tk.Frame(in_frame, bg=BG_DARK)
-f3.grid(row=0, column=2, sticky="ew", padx=(0,15))
+f3 = tk.Frame(in_frame, bg=BG_DARK); f3.grid(row=0, column=2, sticky="ew", padx=(0,15))
 make_label(f3, "运费币种").pack(anchor=tk.W)
 combo_ship = ttk.Combobox(f3, values=list(FULL_RATES.keys()), state="readonly")
 combo_ship.set("🇲🇾 MYR"); combo_ship.pack(fill=tk.X, pady=8, ipady=3); combo_ship.bind("<<ComboboxSelected>>", calculate_logic)
 
-# 数量 (步进器)
-f4 = tk.Frame(in_frame, bg=BG_DARK)
-f4.grid(row=0, column=3, sticky="ew")
-make_label(f4, "🔢 订单数量").pack(anchor=tk.W)
+f4 = tk.Frame(in_frame, bg=BG_DARK); f4.grid(row=0, column=3, sticky="ew")
+make_label(f4, "🔢 数量").pack(anchor=tk.W)
 spin_qty = tk.Spinbox(f4, from_=1, to=100, font=("Arial", 16, "bold"), relief="flat", bg=INPUT_DARK, fg=TEXT_WHITE, buttonbackground=INPUT_DARK, command=calculate_logic)
 spin_qty.pack(fill=tk.X, pady=8); spin_qty.bind("<KeyRelease>", lambda e: calculate_logic())
 
-# 结果显示币种
-tk.Label(main, text="💵 最终结果币种:", font=("Arial", 10), bg=BG_DARK, fg=TEXT_GRAY).pack(anchor=tk.W, pady=(15,2))
-combo_out = ttk.Combobox(main, values=list(FULL_RATES.keys()), state="readonly")
-combo_out.set("🇲🇾 MYR"); combo_out.pack(fill=tk.X, pady=(0, 20), ipady=6); combo_out.bind("<<ComboboxSelected>>", calculate_logic)
+# --- 按钮优化：黑暗模式下的 Apple 蓝 ---
+btn_container = tk.Frame(main, bg=BG_DARK, pady=20)
+btn_container.pack(fill=tk.X)
 
-# 计算按钮 (Mac风格)
-btn = tk.Button(main, text="计 算 运 营 定 价", font=("Arial", 14, "bold"), bg="#007AFF", fg="white", relief="flat", command=calculate_logic, pady=12, highlightthickness=0)
+btn = tk.Button(
+    btn_container, 
+    text="计 算 运 营 定 价", 
+    font=("Arial", 14, "bold"), 
+    bg=MAC_BLUE,            # 苹果蓝
+    fg=TEXT_WHITE,          # 纯白字
+    activebackground="#005FB8", # 点击时的深蓝色
+    activeforeground=TEXT_WHITE,
+    relief="flat",          # 去掉边框感
+    highlightthickness=0,   # 去掉 Mac 默认的光晕
+    bd=0,                   # 边框宽度为0
+    pady=15,                # 增加上下内边距，让它更有实体感
+    cursor="hand2",         # 鼠标悬停变手型
+    command=calculate_logic
+)
 btn.pack(fill=tk.X)
 
-# 结果展示区
+# 结果展示
 text_res = tk.Text(main, height=14, font=("Menlo", 13), state=tk.DISABLED, bg=CARD_DARK, fg=TEXT_WHITE, relief="flat", padx=15, pady=15)
-text_res.pack(fill=tk.X, pady=(20, 0))
+text_res.pack(fill=tk.X)
 
 calculate_logic()
 root.mainloop()
