@@ -1,0 +1,35 @@
+name: Build Mac App
+
+on:
+  push:
+    branches: [ main ]  # 当你提交代码到 main 分支时触发
+  workflow_dispatch:     # 允许你手动点击运行
+
+jobs:
+  build:
+    runs-on: macos-latest  # 使用 GitHub 最新的 Mac 服务器
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9' # 指定 Python 版本
+
+    - name: Install PyInstaller
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+
+    - name: Build with PyInstaller
+      run: |
+        # 执行打包命令
+        python -m PyInstaller --noconsole --onefile --clean tiktok_tool.py
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: TikTok-Pricing-Tool-Mac  # 下载时的文件名
+        path: dist/tiktok_tool         # 打包生成的路径
