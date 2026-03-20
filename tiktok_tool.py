@@ -2,155 +2,164 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import math
 
-# --- 默认汇率配置 (1 RMB 等于多少外币) ---
-# 参考汇率，建议在 App 界面根据当天实时数据微调
+# --- 配置 ---
+FIXED_MYR_RATE = 1 / 1.75  # 1:1.75 换算出的 1RMB 兑 MYR 值 (约 0.5714)
 DEFAULT_RATES = {
-    "🇲🇾 MYR": 0.588,
+    "🇨🇳 RMB": 1.0,
+    "🇲🇾 MYR": round(FIXED_MYR_RATE, 3),
     "🇺🇸 USD": 0.138,
     "🇪🇺 EUR": 0.127,
-    "🇹🇼 TWD": 4.45,   # 新增：新台币
-    "🇭🇰 HKD": 1.08,   # 新增：港币
-    "🇻🇳 VND": 3450.0,
+    "🇹🇼 TWD": 4.45,
+    "🇭🇰 HKD": 1.08,
     "🇹🇭 THB": 4.85,
+    "🇻🇳 VND": 3450.0,
     "🇧🇷 BRL": 0.72,
     "🇲🇽 MXN": 2.35,
     "🇦🇷 ARS": 120.0,
     "🇯🇵 JPY": 20.5,
     "🇵🇭 PHP": 7.8,
-    "🇮🇩 IDR": 2150.0,
-    "🇨🇳 RMB": 1.0
+    "🇮🇩 IDR": 2150.0
 }
 
-# 财务常量 (基于马来站逻辑)
 TARGET_PROFIT_RATE = 0.20
 TARGET_DISCOUNT_RATE = 0.51
 FIXED_FEES_MYR = 0.54
 DEDUCTION_COEFFICIENT = 0.692
 
-def core_calculation(cost_rmb, shipping_val, ship_curr, out_curr, current_rates):
-    # 1. 统一折算运费为 MYR
-    # 先转 RMB，再转 MYR
-    ship_in_rmb = shipping_val / current_rates[ship_curr]
-    ship_myr = ship_in_rmb * current_rates["🇲🇾 MYR"]
-    
-    # 2. 核心定价计算
-    cost_myr = cost_rmb * current_rates["🇲🇾 MYR"]
-    deal_price_myr = (cost_myr + ship_myr + FIXED_FEES_MYR) / DEDUCTION_COEFFICIENT
-    
-    # 3. 计算原价 (向上取整)
-    original_price_myr = math.ceil(deal_price_myr / (1 - TARGET_DISCOUNT_RATE))
-    
-    # 4. 财务预览数据 (MYR)
-    profit_myr = deal_price_myr * TARGET_PROFIT_RATE
-    commission_myr = deal_price_myr * 0.0702
-    
-    # 5. 转换到目标显示货币
-    to_out = lambda val_myr: (val_myr / current_rates["🇲🇾 MYR"]) * current_rates[out_curr]
-    
-    return (
-        to_out(deal_price_myr), 
-        to_out(original_price_myr), 
-        to_out(commission_myr), 
-        to_out(profit_myr)
-    )
+# 存储原始汇率 (1:X)
+base_rates = {k: v for k, v in DEFAULT_RATES.items()}
+
+def toggle_rate_mode():
+    """切换汇率模式"""
+    mode = rate_mode.get()
+    if mode == "fixed":
+        # 锁定马币输入框并设置固定值
+        rate_entries["🇲🇾 MYR"].config(state='disabled')
+        base_rates["🇲🇾 MYR"] = FIXED_MYR_RATE
+        on_rmb_change() # 刷新显示
+    else:
+        # 恢复手动输入
+        rate_entries["🇲🇾 MYR"].config(state='normal')
+
+def on_rmb_change(*args):
+    """基准人民币变动逻辑"""
+    try:
+        rmb_val = float(rmb_var.get()) if rmb_var.get() else 0
+        for curr, var in rate_vars.items():
+            if curr == "🇨🇳 RMB": continue
+            
+            # 如果是固定模式且是马币，强制使用固定比例
+            current_rate = FIXED_MYR_RATE if (rate_mode.get() == "fixed" and curr == "🇲🇾 MYR") else base_rates[curr]
+            
+            new_val = rmb_val * current_rate
+            if current_rate > 100:
+                var.set(f"{new_val:.0f}")
+            else:
+                var.set(f"{new_val:.3f}")
+    except ValueError:
+        pass
+
+def update_base_rate(curr):
+    """手动修改非RMB框时更新基准"""
+    if rate_mode.get() == "fixed" and curr == "🇲🇾 MYR": return
+    try:
+        rmb_val = float(rmb_var.get())
+        current_display_val = float(rate_vars[curr].get())
+        if rmb_val != 0:
+            base_rates[curr] = current_display_val / rmb_val
+    except ValueError:
+        pass
 
 def calculate_single(event=None):
     try:
-        # 获取用户输入的实时汇率
-        user_rates = {}
-        for curr, entry in rate_entries.items():
-            user_rates[curr] = float(entry.get())
+        # 同步汇率
+        for curr in DEFAULT_RATES.keys():
+            if curr != "🇨🇳 RMB": update_base_rate(curr)
         
         cost_rmb = float(entry_cost_rmb.get())
         ship_val = float(entry_ship_val.get())
         ship_curr = combo_ship_curr.get()
         out_curr = combo_out_curr.get()
         
-        d, o, c, p = core_calculation(cost_rmb, ship_val, ship_curr, out_curr, user_rates)
+        # 核心换算
+        ship_in_rmb = shipping_val / base_rates[ship_curr]
+        target_myr_rate = FIXED_MYR_RATE if rate_mode.get() == "fixed" else base_rates["🇲🇾 MYR"]
         
-        # 提取币种名称
+        ship_myr = ship_in_rmb * target_myr_rate
+        cost_myr = cost_rmb * target_myr_rate
+        
+        deal_price_myr = (cost_myr + ship_myr + FIXED_FEES_MYR) / DEDUCTION_COEFFICIENT
+        original_price_myr = math.ceil(deal_price_myr / (1 - TARGET_DISCOUNT_RATE))
+        profit_myr = deal_price_myr * TARGET_PROFIT_RATE
+        commission_myr = deal_price_myr * 0.0702
+        
+        to_out = lambda val_myr: (val_myr / target_myr_rate) * base_rates[out_curr]
+        d, o, c, p = to_out(deal_price_myr), to_out(original_price_myr), to_out(commission_myr), to_out(profit_myr)
+        
         curr_code = out_curr.split()[-1]
-        
         text_result.config(state=tk.NORMAL)
         text_result.delete(1.0, tk.END)
-        
-        res = (
-            f"--- 定价建议 ({curr_code}) ---\n"
-            f"建议原价：{o:.2f}\n"
-            f"后台折扣：{TARGET_DISCOUNT_RATE*100:.0f}%\n"
-            f"成交价格：{d:.2f}\n"
-            f"--------------------\n"
-            f"--- 预估财务预览 ---\n"
-            f"平台佣金: {c:.2f}\n"
-            f"预计利润: {p:.2f}\n"
-            f"\n* 汇率基准: 1 RMB = {user_rates[out_curr]} {curr_code}"
-        )
-        text_result.insert(tk.END, res)
+        text_result.insert(tk.END, f"--- 定价建议 ({curr_code}) ---\n建议原价：{o:.2f}\n后台折扣：{TARGET_DISCOUNT_RATE*100:.0f}%\n成交价格：{d:.2f}\n"
+                                   f"--------------------\n--- 预估财务预览 ---\n平台佣金: {c:.2f}\n预计利润: {p:.2f}\n"
+                                   f"\n* 汇率模式: {'固定 1:1.75' if rate_mode.get()=='fixed' else '手动实时'}")
         text_result.config(state=tk.DISABLED)
-        
-    except ValueError:
-        messagebox.showerror("输入错误", "汇率、成本和运费框内只能输入数字！")
+    except Exception as e:
+        messagebox.showerror("错误", "请检查输入数值是否正确")
 
 # --- UI 界面 ---
 root = tk.Tk()
 root.title("TikTok定价助手 Pro")
-root.geometry("520x820") # 适配多币种高度
+root.geometry("540x880")
 
 main_frame = tk.Frame(root, padx=20, pady=15)
 main_frame.pack(fill=tk.BOTH, expand=True)
 
-# 1. 汇率设置区 (3列网格)
-rate_label_frame = tk.LabelFrame(main_frame, text=" ⚙️ 实时汇率设置 (1 RMB = ?) ", padx=10, pady=10)
+# 汇率设置区
+rate_label_frame = tk.LabelFrame(main_frame, text=" ⚙️ 汇率同步设置 ", padx=10, pady=10)
 rate_label_frame.pack(fill=tk.X, pady=(0, 15))
 
+# 模式切换
+rate_mode = tk.StringVar(value="manual")
+mode_frame = tk.Frame(rate_label_frame)
+mode_frame.grid(row=0, column=0, columnspan=6, sticky=tk.W, pady=(0,10))
+tk.Radiobutton(mode_frame, text="手动/实时汇率", variable=rate_mode, value="manual", command=toggle_rate_mode).pack(side=tk.LEFT)
+tk.Radiobutton(mode_frame, text="锁定 MYR 固定汇率 (1:1.75)", variable=rate_mode, value="fixed", command=toggle_rate_mode).pack(side=tk.LEFT, padx=15)
+
+rate_vars = {}
 rate_entries = {}
-currencies = list(DEFAULT_RATES.keys())
-for i, curr in enumerate(currencies):
-    row = i // 3
-    col = (i % 3) * 2
+rmb_var = tk.StringVar(value="1")
+rmb_var.trace_add("write", on_rmb_change)
+
+for i, curr in enumerate(DEFAULT_RATES.keys()):
+    row, col = (i // 3) + 1, (i % 3) * 2
     tk.Label(rate_label_frame, text=f"{curr}:", font=("Arial", 9)).grid(row=row, column=col, sticky=tk.W, pady=2)
-    ent = tk.Entry(rate_label_frame, width=7)
-    ent.insert(0, str(DEFAULT_RATES[curr]))
+    var = rmb_var if curr == "🇨🇳 RMB" else tk.StringVar(value=str(DEFAULT_RATES[curr]))
+    rate_vars[curr] = var
+    ent = tk.Entry(rate_label_frame, width=8, textvariable=var)
     ent.grid(row=row, column=col+1, padx=(2, 5), pady=2)
     rate_entries[curr] = ent
+    if curr != "🇨🇳 RMB":
+        ent.bind("<FocusOut>", lambda e, c=curr: update_base_rate(c))
 
-# 2. 核心输入区
+# 核心输入区
 tk.Label(main_frame, text="💰 商品成本 (人民币 RMB):", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-entry_cost_rmb = tk.Entry(main_frame, font=("Arial", 14))
-entry_cost_rmb.pack(fill=tk.X, pady=(5, 12))
-entry_cost_rmb.insert(0, "20")
+entry_cost_rmb = tk.Entry(main_frame, font=("Arial", 14)); entry_cost_rmb.pack(fill=tk.X, pady=5); entry_cost_rmb.insert(0, "20")
 
-tk.Label(main_frame, text="🚚 跨境运费 (输入数值并选择币种):", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-ship_row = tk.Frame(main_frame)
-ship_row.pack(fill=tk.X, pady=(5, 12))
+tk.Label(main_frame, text="🚚 跨境运费:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10,0))
+ship_row = tk.Frame(main_frame); ship_row.pack(fill=tk.X, pady=5)
+entry_ship_val = tk.Entry(ship_row, font=("Arial", 14), width=15); entry_ship_val.pack(side=tk.LEFT, fill=tk.X, expand=True); entry_ship_val.insert(0, "1.95")
+combo_ship_curr = ttk.Combobox(ship_row, values=list(DEFAULT_RATES.keys()), width=12, state="readonly", font=("Arial", 12))
+combo_ship_curr.set("🇲🇾 MYR"); combo_ship_curr.pack(side=tk.RIGHT, padx=(10,0))
 
-entry_ship_val = tk.Entry(ship_row, font=("Arial", 14), width=15)
-entry_ship_val.pack(side=tk.LEFT, fill=tk.X, expand=True)
-entry_ship_val.insert(0, "1.95")
+tk.Label(main_frame, text="💵 结果显示币种:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10,0))
+combo_out_curr = ttk.Combobox(main_frame, values=list(DEFAULT_RATES.keys()), state="readonly", font=("Arial", 12))
+combo_out_curr.set("🇲🇾 MYR"); combo_out_curr.pack(fill=tk.X, pady=5)
 
-combo_ship_curr = ttk.Combobox(ship_row, values=currencies, width=12, state="readonly", font=("Arial", 12))
-combo_ship_curr.set("🇲🇾 MYR")
-combo_ship_curr.pack(side=tk.RIGHT, padx=(10, 0))
+btn_calc = tk.Button(main_frame, text="开始定价计算 (Enter)", font=("Arial", 14, "bold"), bg="#00f2ea", fg="black", command=calculate_single, pady=10)
+btn_calc.pack(fill=tk.X, pady=15); root.bind('<Return>', calculate_single)
 
-# 3. 输出设置
-tk.Label(main_frame, text="💵 结果显示币种:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-combo_out_curr = ttk.Combobox(main_frame, values=currencies, state="readonly", font=("Arial", 12))
-combo_out_curr.set("🇲🇾 MYR")
-combo_out_curr.pack(fill=tk.X, pady=(5, 15))
-
-# 4. 计算按钮
-btn_calc = tk.Button(main_frame, text="开始定价计算 (Enter)", font=("Arial", 14, "bold"), 
-                     bg="#00f2ea", fg="black", command=calculate_single, pady=10)
-btn_calc.pack(fill=tk.X, pady=(0, 15))
-root.bind('<Return>', calculate_single)
-
-# 5. 结果显示
-text_result = tk.Text(main_frame, height=10, font=("Menlo", 12), 
-                      state=tk.DISABLED, padx=12, pady=12)
+text_result = tk.Text(main_frame, height=10, font=("Menlo", 12), state=tk.DISABLED, padx=12, pady=12)
 text_result.pack(fill=tk.X)
-
-# 底部提示
-tk.Label(main_frame, text="* 适配黑暗模式 | 右键.app可修改图标 | 汇率即改即用", font=("Arial", 8), fg="gray").pack(pady=5)
 
 if __name__ == "__main__":
     root.mainloop()
