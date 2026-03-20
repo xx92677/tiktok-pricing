@@ -11,13 +11,12 @@ FULL_RATES = {
     "🇵🇭 PHP": 7.8, "🇮🇩 IDR": 2150.0
 }
 
-# 黑暗模式色板 (Apple Dark Mode Palette)
-DB_MAIN = "#1C1C1E"       # 深度背景
-DB_CARD = "#2C2C2E"       # 容器背景
-DB_INPUT = "#3A3A3C"      # 输入框背景
-DB_TEXT = "#FFFFFF"       # 主文字
-DB_SUBTEXT = "#A1A1AA"    # 副文字
-DB_ACCENT = "#0A84FF"     # 蓝色强调
+# 黑暗模式色板
+DB_MAIN = "#1C1C1E"
+DB_CARD = "#2C2C2E"
+DB_INPUT = "#3A3A3C"
+DB_TEXT = "#FFFFFF"
+DB_SUBTEXT = "#A1A1AA"
 COMMISSION_RATE = 0.0702
 FIXED_FEE_MYR = 0.54
 TARGET_DISCOUNT = 0.51
@@ -37,36 +36,53 @@ def calculate_logic(*args):
         ship_val = get_num(entry_ship)
         ship_curr, out_curr = combo_ship.get(), combo_out.get()
         
+        # 提取当前结果币种的后缀 (例如 "MYR")
+        suffix = out_curr.split()[-1]
+        
         # 利润率解析
         p_str = combo_profit.get().strip('%')
         profit_margin = float(p_str) / 100 if p_str else 0.20
         
-        # 汇率基准
-        myr_rate = FIXED_MYR_RATE if rate_mode.get() == "fixed" else base_rates["🇲🇾 MYR"]
-        cost_myr = cost_rmb * myr_rate
-        ship_myr = (ship_val / base_rates[ship_curr]) * myr_rate
+        # 汇率基准 (1 RMB = X 外币)
+        myr_rate_val = FIXED_MYR_RATE if rate_mode.get() == "fixed" else base_rates["🇲🇾 MYR"]
         
-        # 倒求公式: 售价 = (成本+运费+固定费) / (1 - 佣金率 - 利润率)
+        # 1. 成本与运费全部折算为马币 (逻辑中心)
+        ship_myr = (ship_val / base_rates[ship_curr]) * myr_rate_val
+        cost_myr = cost_rmb * myr_rate_val
+        
+        # 2. 倒求折后售价 (MYR)
         divisor = 1 - COMMISSION_RATE - profit_margin
         if divisor <= 0: return
-            
         p_deal_myr = (cost_myr + ship_myr + FIXED_FEE_MYR) / divisor
+        
+        # 3. 反推原价 (MYR)
         p_orig_myr = math.ceil(p_deal_myr / (1 - TARGET_DISCOUNT))
         
-        to_out = lambda v: (v / myr_rate) * base_rates[out_curr]
-        res_deal = to_out(p_deal_myr)
+        # 4. 转换至显示币种
+        to_out = lambda v: (v / myr_rate_val) * base_rates[out_curr]
+        
+        final_deal = to_out(p_deal_myr)
+        final_profit = final_deal * profit_margin
+        final_comm = final_deal * COMMISSION_RATE
+        final_total_cost = to_out(cost_myr + ship_myr + FIXED_FEE_MYR)
+        
+        # 5. 特殊计算：无论当前是什么币种，额外算一个人民币利润
+        # 利润(RMB) = 利润(MYR) / 马币汇率
+        profit_rmb = (p_deal_myr * profit_margin) / myr_rate_val
         
         text_res.config(state=tk.NORMAL)
         text_res.delete(1.0, tk.END)
         text_res.insert(tk.END, 
-            f"建议原价：{to_out(p_orig_myr):.2f}\n"
-            f"折后售价：{res_deal:.2f}\n"
+            f"建议原价：{to_out(p_orig_myr):.2f} {suffix}\n"
+            f"折后售价：{final_deal:.2f} {suffix}\n"
             f"--------------------\n"
-            f"目标利润 ({int(profit_margin*100)}%): {res_deal * profit_margin:.2f}\n"
-            f"佣金扣除 (7.02%): {res_deal * COMMISSION_RATE:.2f}\n"
-            f"总成本 (含费): {to_out(cost_myr + ship_myr + FIXED_FEE_MYR):.2f}\n"
+            f"目标利润 ({int(profit_margin*100)}%): {final_profit:.2f} {suffix}\n"
+            f"预计利润 (RMB): {profit_rmb:.2f} RMB\n"
             f"--------------------\n"
-            f"汇率基准: 1 RMB = {base_rates[out_curr]:.3f} {out_curr.split()[-1]}"
+            f"佣金扣除 (7.02%): {final_comm:.2f} {suffix}\n"
+            f"总成本 (含费): {final_total_cost:.2f} {suffix}\n"
+            f"--------------------\n"
+            f"汇率基准: 1 RMB = {base_rates[out_curr]:.3f} {suffix}"
         )
         text_res.config(state=tk.DISABLED)
     except: pass
@@ -84,14 +100,12 @@ def sync_rates(*args):
 # --- 3. UI 构造 ---
 root = tk.Tk()
 root.title("TikTok定价助手 Pro")
-root.geometry("580x850")
+root.geometry("580x880")
 root.configure(bg=DB_MAIN)
 
-# 适配 M 芯片 Retina 屏
 if root.tk.call('tk', 'windowingsystem') == 'aqua':
     root.tk.call('tk', 'scaling', 2.0)
 
-# 统一配置 Combobox 黑暗模式样式
 style = ttk.Style()
 style.theme_use('aqua')
 style.configure("TCombobox", fieldbackground=DB_INPUT, foreground=DB_TEXT, background=DB_INPUT)
@@ -100,7 +114,7 @@ main = tk.Frame(root, padx=25, pady=15, bg=DB_MAIN)
 main.pack(fill=tk.BOTH, expand=True)
 
 # 汇率区
-lf = tk.LabelFrame(main, text=" 实时汇率设置 (RMB锚点) ", padx=12, pady=10, bg=DB_MAIN, fg=DB_SUBTEXT, font=("Arial", 9, "bold"))
+lf = tk.LabelFrame(main, text=" 实时汇率设置 ", padx=12, pady=10, bg=DB_MAIN, fg=DB_SUBTEXT, font=("Arial", 9, "bold"))
 lf.pack(fill=tk.X, pady=(0, 15))
 
 rate_mode = tk.StringVar(value="manual")
@@ -122,7 +136,7 @@ for i, curr in enumerate(FULL_RATES.keys()):
     if curr == "🇨🇳 RMB": entry_rmb_base = e
     if curr != "🇨🇳 RMB": e.bind("<KeyRelease>", lambda e, c=curr: calculate_logic())
 
-# 利润率选择 (20%-30%)
+# 利润率选择
 tk.Label(main, text="🎯 目标利润率 (Margin):", font=("Arial", 10, "bold"), bg=DB_MAIN, fg=DB_TEXT).pack(anchor=tk.W, pady=(5,5))
 combo_profit = ttk.Combobox(main, values=[f"{i}%" for i in range(20, 31)], state="readonly")
 combo_profit.set("20%")
@@ -150,18 +164,18 @@ tk.Label(main, text="💵 结果显示币种:", font=("Arial", 10, "bold"), bg=D
 combo_out = ttk.Combobox(main, values=list(FULL_RATES.keys()), state="readonly")
 combo_out.set("🇲🇾 MYR"); combo_out.pack(fill=tk.X, pady=(0, 20), ipady=6); combo_out.bind("<<ComboboxSelected>>", calculate_logic)
 
-# 现代风黑色按钮
+# 按钮
 btn = tk.Button(main, text="计 算 定 价", font=("Arial", 14, "bold"), 
                 bg="#FFFFFF", fg="#000000", highlightbackground=DB_MAIN,
                 relief="flat", command=calculate_logic, pady=12)
 btn.pack(fill=tk.X, pady=(0, 15))
 
 # 结果输出
-text_res = tk.Text(main, height=8, font=("Menlo", 13), state=tk.DISABLED, 
+text_res = tk.Text(main, height=10, font=("Menlo", 13), state=tk.DISABLED, 
                    bg=DB_CARD, fg=DB_TEXT, relief="flat", padx=15, pady=15)
 text_res.pack(fill=tk.X)
 
-tk.Label(main, text="* Native Apple Silicon (M-Series) Optimized", font=("Arial", 8), fg=DB_SUBTEXT, bg=DB_MAIN).pack(pady=10)
+tk.Label(main, text="* 已添加人民币利润独立显示行", font=("Arial", 8), fg=DB_SUBTEXT, bg=DB_MAIN).pack(pady=10)
 
 calculate_logic()
 root.mainloop()
