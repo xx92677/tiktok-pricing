@@ -93,7 +93,7 @@ def calculate_single(event=None):
 
 # --- UI 界面 ---
 root = tk.Tk()
-root.title("TikTok 全球定价助手 Pro - 14币种版")
+root.title("TikTok定价助手 Pro")
 root.geometry("520x820") # 适配多币种高度
 
 main_frame = tk.Frame(root, padx=20, pady=15)
