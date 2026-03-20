@@ -5,7 +5,7 @@ import math
 # --- 1. 核心财务配置 ---
 FIXED_MYR_RATE = 0.57  # 1 RMB = 0.57 MYR
 FULL_RATES = {
-    "🇨🇳 RMB": 1.0, "🇲🇾 MYR": 0.588, "🇺🇸 USD": 0.138, "🇪🇺 EUR": 0.127,
+    "🇨🇳 RMB": 1.0, "🇲🇾 MYR": 0.57, "🇺🇸 USD": 0.138, "🇪🇺 EUR": 0.127,
     "🇹🇼 TWD": 4.45, "🇭🇰 HKD": 1.08, "🇹🇭 THB": 4.85, "🇻🇳 VND": 3450.0,
     "🇧🇷 BRL": 0.72, "🇲🇽 MXN": 2.35, "🇦🇷 ARS": 120.0, "🇯🇵 JPY": 20.5,
     "🇵🇭 PHP": 7.8, "🇮🇩 IDR": 2150.0
@@ -47,7 +47,7 @@ def calculate_logic(*args):
         profit_margin = float(p_str) / 100 if p_str else 0.25
         
         # 确定马币汇率基准
-        my_rate = FIXED_MYR_RATE if rate_mode.get() == "fixed" else base_rates.get("🇲🇾 MYR", 0.588)
+        my_rate = FIXED_MYR_RATE if rate_mode.get() == "fixed" else base_rates.get("🇲🇾 MYR", 0.57)
         
         # 计算折算为马币的成本
         ship_myr = (ship_val / base_rates.get(ship_curr, 1.0)) * my_rate
